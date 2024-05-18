@@ -2,6 +2,10 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 import yfinance as yf
+import urllib.request
+import ssl
+import io
+import zipfile
 
 
 class DataReader:
@@ -9,13 +13,16 @@ class DataReader:
         self.start_date = start_date
 
     def run(self):
-        self.stock_data = pd.DataFrame()
-        self.sp500_symbols = self._get_sp500_symbols()
+     #   self.stock_data = pd.DataFrame()
+      #  self.sp500_symbols = self._get_sp500_symbols()
         # self.sp500_symbols = ["MMM"]
-        self.stock_data = pd.DataFrame()
-        self._fetch_stock_data(start_date=self.start_date)
-        self._save_stock_data_to_csv()
-        self._get_market_return_and_US_Treasury()
+      #  self.stock_data = pd.DataFrame()
+     #   self._fetch_stock_data(start_date=self.start_date)
+      #  self._save_stock_data_to_csv()
+      #  self._get_market_return_and_US_Treasury()
+      #  self._fetch_stock_data()
+        self._get_FamaFrech_3Factors_weekly()
+        self._prepare_FamaFrench(start_date=self.start_date)
 
     def _get_sp500_symbols(self):
         url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
@@ -102,24 +109,23 @@ class DataReader:
 
     def _save_stock_data_to_csv(
         self,
-        filename=r"C:\Users\simon\OneDrive\Dokumente\[1] Uni\[1] Master\2. Semester Sommersemester 2024\Quantitative_trading_competition\Code\Quantitative_trading_competition\data\sp500_stock_data.csv",
+        filename="/Users/fabianzanghellini/Desktop/Seminararbeit Finance SS24/Backtesting/data/sp500_stock_data.csv" ,
     ):
         self.stock_data.to_csv(filename, index=False)
-
 
     def _get_market_return_and_US_Treasury(self):
         # Define the ticker symbols for S&P 500 and US Treasury interest rate
         sp500_ticker = "^GSPC"
         interest_rate = "^TNX"
-        
+
         # Download historical data for S&P 500 and interest rate
         sp500_data = yf.download(sp500_ticker, start=self.start_date)
         interest_rate_data = yf.download(interest_rate, start=self.start_date)
-        
+
         # Calculate daily returns for both datasets
         sp500_daily_returns = sp500_data["Adj Close"].pct_change()
         interest_rate_daily_returns = interest_rate_data["Adj Close"].pct_change()
-        
+
         # Combine daily returns into a DataFrame
         market_interest = pd.DataFrame({
             'Date': sp500_data.index,  # Use the index of the S&P 500 data as the date column
@@ -128,10 +134,39 @@ class DataReader:
         })
         market_interest.set_index('Date')
 
-        market_interest.to_csv(r"C:\Users\simon\OneDrive\Dokumente\[1] Uni\[1] Master\2. Semester Sommersemester 2024\Quantitative_trading_competition\Code\Quantitative_trading_competition\data\market_interest.csv", index=False)
+        market_interest.to_csv(
+            "/Users/fabianzanghellini/Desktop/Seminararbeit Finance SS24/Backtesting/data/market_interest.csv",
+            index=False)
 
-        return market_interest  
+        return market_interest
 
+    def _get_FamaFrech_3Factors_weekly(self):
+        ff_weekly_url = "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_Factors_weekly_CSV.zip"
+        save_path = "/Users/fabianzanghellini/Desktop/Seminararbeit Finance SS24/Backtesting/data/ff_weekly.csv"
 
+        cacert_path = '/Users/fabianzanghellini/Desktop/Seminararbeit Finance SS24/Backtesting/data/cacert.pem'
+        context = ssl.create_default_context(cafile=cacert_path)
+
+        with urllib.request.urlopen(ff_weekly_url, context=context) as response:
+            with zipfile.ZipFile(io.BytesIO(response.read())) as z:
+                # Extract the specific file from the ZIP archive
+                with z.open('F-F_Research_Data_Factors_weekly.csv') as csv_file:
+                    with open(save_path, 'wb') as out_file:
+                        out_file.write(csv_file.read())
+
+    def _prepare_FamaFrench(self, start_date):
+        fama_french = pd.read_csv(
+            "/Users/fabianzanghellini/Desktop/Seminararbeit Finance SS24/Backtesting/data/ff_weekly.csv", skiprows=4, header=0)
+
+        fama_french = fama_french.rename(columns={fama_french.columns[0]: 'Date'})
+        fama_french = fama_french.iloc[:, [0, 4]]
+        fama_french = fama_french.iloc[:-3, :]                                          #Copyright Hinweise entfernen
+        fama_french['Date'] = pd.to_datetime(fama_french['Date'], format='%Y%m%d')
+        fama_french.iloc[:, -1] = fama_french.iloc[:, -1] / 100
+        fama_french = fama_french[fama_french['Date'] >= start_date]
+
+        fama_french.to_csv(
+            "/Users/fabianzanghellini/Desktop/Seminararbeit Finance SS24/Backtesting/data/ff_weekly.csv",
+            index=False)
 
 # data_reader = DataReader("2024-05-05")
