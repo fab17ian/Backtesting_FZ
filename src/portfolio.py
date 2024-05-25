@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import requests
 from io import StringIO
-
+#test
 
 class Portfolio:
     def __init__(self, streakLength=4, thresholdType="returnRaw") -> None:
